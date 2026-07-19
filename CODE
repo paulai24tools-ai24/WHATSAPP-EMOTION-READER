@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Core Sample — turn your chats into a story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --ink:#10131A;
+    --surface:#191E28;
+    --surface-raised:#212736;
+    --paper:#EDE6D6;
+    --paper-dim:#B9B2A2;
+    --amber:#E8A33D;
+    --amber-dim:#8A6528;
+    --rust:#C1553C;
+    --line:rgba(237,230,214,0.10);
+    --line-strong:rgba(237,230,214,0.22);
+
+    --e-joy:#F2B705; --e-love:#E85D75; --e-excitement:#FF8C42; --e-gratitude:#6FCF97;
+    --e-nostalgia:#A594B0; --e-sadness:#5B7FB8; --e-anxiety:#C77DFF; --e-anger:#D64545;
+    --e-frustration:#B0653C; --e-hope:#5FB49C; --e-pride:#D4A15C; --e-relief:#8FBF9F;
+    --e-longing:#8A7A9E; --e-confusion:#9C9C9C; --e-tension:#B23A48; --e-humor:#F2994A;
+    --e-curiosity:#5AAAD9;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--ink);color:var(--paper);font-family:'Inter',sans-serif;}
+  ::selection{background:var(--amber);color:var(--ink);}
+  a{color:inherit;}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:var(--amber);margin:0 0 18px;}
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;margin:0;}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:96px 0 80px;position:relative;overflow:hidden;border-bottom:1px solid var(--line);}
+  .hero-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:56px;align-items:center;}
+  .hero h1{font-size:56px;line-height:1.05;font-weight:600;letter-spacing:-0.01em;}
+  .hero h1 em{font-style:italic;color:var(--amber);font-weight:500;}
+  .hero p.lede{font-size:18px;line-height:1.6;color:var(--paper-dim);max-width:46ch;margin:22px 0 34px;}
+  .formats-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:28px;}
+  .format-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.04em;padding:6px 12px;border:1px solid var(--line-strong);border-radius:100px;color:var(--paper-dim);}
+
+  .core-illustration{position:relative;height:380px;display:flex;align-items:center;justify-content:center;}
+  .core-tube{width:120px;height:340px;border-radius:60px;border:1px solid var(--line-strong);position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(237,230,214,0.03),rgba(237,230,214,0.01));box-shadow:inset 0 0 40px rgba(0,0,0,0.5);}
+  .strata-demo div{position:absolute;left:0;right:0;}
+  .core-glow{position:absolute;inset:-60px;background:radial-gradient(circle at 50% 30%,rgba(232,163,61,0.14),transparent 60%);pointer-events:none;}
+
+  /* ---------- DROP ZONE ---------- */
+  .dropzone{margin-top:44px;border:1.5px dashed var(--line-strong);border-radius:18px;padding:36px;text-align:left;cursor:pointer;transition:border-color .2s, background .2s;background:rgba(237,230,214,0.015);}
+  .dropzone:hover, .dropzone.drag{border-color:var(--amber);background:rgba(232,163,61,0.05);}
+  .dropzone .dz-title{font-family:'Fraunces',serif;font-size:20px;font-weight:600;margin-bottom:6px;}
+  .dropzone .dz-sub{color:var(--paper-dim);font-size:14px;line-height:1.5;}
+  .dropzone input{display:none;}
+  .dz-icon{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--amber);margin-bottom:14px;display:block;}
+
+  /* ---------- PROCESSING ---------- */
+  #processing{display:none;padding:120px 0;text-align:center;}
+  #processing.active{display:block;}
+  .dig-line{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--paper-dim);margin-top:18px;letter-spacing:0.02em;}
+  .progress-track{max-width:420px;margin:32px auto 0;height:3px;background:var(--line);border-radius:2px;overflow:hidden;}
+  .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--amber),var(--rust));transition:width .4s ease;}
+  .spin{width:34px;height:34px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--amber);margin:0 auto;animation:spin 0.9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---------- RESULTS ---------- */
+  #results{display:none;}
+  #results.active{display:block;}
+  .results-head{padding:64px 0 40px;border-bottom:1px solid var(--line);}
+  .results-head h2{font-size:34px;}
+  .results-head .meta{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--paper-dim);margin-top:10px;letter-spacing:0.03em;}
+
+  .sample-layout{display:grid;grid-template-columns:200px 1fr;gap:56px;padding:56px 0;}
+  .core-rail{position:sticky;top:32px;align-self:start;}
+  .core-strip{width:64px;border-radius:32px;overflow:hidden;border:1px solid var(--line-strong);margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,0.4);}
+  .stratum{width:100%;cursor:pointer;position:relative;transition:filter .15s;}
+  .stratum:hover{filter:brightness(1.25);}
+  .core-caption{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--paper-dim);margin-top:14px;letter-spacing:0.05em;text-transform:uppercase;}
+
+  .chapters{display:flex;flex-direction:column;gap:28px;}
+  .chapter{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:32px 36px;scroll-margin-top:24px;}
+  .chapter.flash{border-color:var(--amber);}
+  .chapter-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;}
+  .chapter h3{font-size:24px;margin-bottom:6px;}
+  .chapter .range{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--paper-dim);margin-bottom:18px;}
+  .chapter .narrative{font-size:15.5px;line-height:1.75;color:#DCD6C8;}
+  .emotion-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;}
+  .etag{display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 10px 5px 8px;border-radius:100px;background:rgba(237,230,214,0.04);border:1px solid var(--line);}
+  .etag .dot{width:8px;height:8px;border-radius:50%;}
+
+  /* ---------- IDEAS ---------- */
+  .ideas-section{padding:56px 0 100px;border-top:1px solid var(--line);}
+  .ideas-section .eyebrow{margin-bottom:10px;}
+  .ideas-section h2{font-size:30px;margin-bottom:8px;}
+  .ideas-section .sub{color:var(--paper-dim);font-size:15px;max-width:56ch;margin-bottom:36px;}
+  .ideas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;}
+  .idea-card{background:var(--surface-raised);border:1px solid var(--line);border-radius:14px;padding:24px;}
+  .idea-cat{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--rust);margin-bottom:10px;}
+  .idea-card h4{font-family:'Fraunces',serif;font-size:18px;font-weight:600;margin-bottom:8px;line-height:1.3;}
+  .idea-card p{font-size:13.5px;color:var(--paper-dim);line-height:1.6;margin:0;}
+  .no-ideas{color:var(--paper-dim);font-size:14px;font-style:italic;}
+
+  .reset-row{padding:20px 0 80px;text-align:center;}
+  .btn-ghost{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.04em;color:var(--paper-dim);background:none;border:1px solid var(--line-strong);border-radius:100px;padding:10px 22px;cursor:pointer;}
+  .btn-ghost:hover{color:var(--paper);border-color:var(--paper-dim);}
+
+  .error-box{margin-top:20px;padding:16px 18px;border:1px solid var(--e-anger);border-radius:10px;background:rgba(214,69,69,0.08);font-size:13.5px;color:#F2C4C4;display:none;}
+
+  footer{border-top:1px solid var(--line);padding:28px 0;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--paper-dim);letter-spacing:0.04em;}
+
+  @media (max-width:820px){
+    .hero-grid{grid-template-columns:1fr;}
+    .core-illustration{height:220px;order:-1;}
+    .sample-layout{grid-template-columns:1fr;}
+    .core-rail{position:static;display:flex;justify-content:center;margin-bottom:12px;}
+    .core-strip{width:220px;height:64px;}
+    .hero h1{font-size:38px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">Emotional Archaeology</p>
+        <h1>Turn your chat archive<br>into a story <em>you can feel.</em></h1>
+        <p class="lede">Drop in an export from WhatsApp, Instagram, Snapchat, or TikTok. Two agents read every line — one maps the emotional terrain, the other digs out the ideas buried inside it. What comes back is a core sample of the conversation: layered, chronological, legible.</p>
+
+        <div class="dropzone" id="dropzone">
+          <span class="dz-icon">↓</span>
+          <div class="dz-title">Drop your export here, or click to browse</div>
+          <div class="dz-sub">.zip, .txt, .json, or .html — media inside a zip is ignored automatically, so a 2–3GB export is no problem. Only the text ever leaves your session.</div>
+          <input type="file" id="fileInput" accept=".zip,.txt,.json,.html">
+        </div>
+        <div class="formats-row">
+          <span class="format-pill">WhatsApp .txt</span>
+          <span class="format-pill">Instagram .json</span>
+          <span class="format-pill">Snapchat .json / .html</span>
+          <span class="format-pill">TikTok .json</span>
+        </div>
+        <div class="error-box" id="errorBox"></div>
+      </div>
+
+      <div class="core-illustration">
+        <div class="core-glow"></div>
+        <div class="core-tube">
+          <div class="strata-demo" id="demoStrata"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="processing">
+    <div class="spin"></div>
+    <div class="dig-line" id="digLine">Reading the archive…</div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </section>
+
+  <section id="results">
+    <div class="results-head">
+      <p class="eyebrow">The Core Sample</p>
+      <h2 id="resultsTitle">Your conversation, laid out in layers</h2>
+      <div class="meta" id="resultsMeta"></div>
+    </div>
+
+    <div class="sample-layout">
+      <div class="core-rail">
+        <div class="core-strip" id="coreStrip"></div>
+        <div class="core-caption">click a layer<br>to jump in</div>
+      </div>
+      <div class="chapters" id="chaptersEl"></div>
+    </div>
+
+    <div class="ideas-section">
+      <p class="eyebrow">Extracted</p>
+      <h2>Ideas worth keeping</h2>
+      <p class="sub">Everything that looked like a plan, a problem worth solving, or the seed of something bigger — pulled out of the conversation and set aside.</p>
+      <div class="ideas-grid" id="ideasGrid"></div>
+    </div>
+
+    <div class="reset-row">
+      <button class="btn-ghost" id="resetBtn">↺ Start over with another file</button>
+    </div>
+  </section>
+</div>
+
+<footer>core sample — reads your archive locally, only text is sent for analysis, nothing is stored</footer>
+
+<script>
+/* ===================== EMOTION TAXONOMY ===================== */
+const EMOTIONS = {
+  joy:"#F2B705", love:"#E85D75", excitement:"#FF8C42", gratitude:"#6FCF97",
+  nostalgia:"#A594B0", sadness:"#5B7FB8", anxiety:"#C77DFF", anger:"#D64545",
+  frustration:"#B0653C", hope:"#5FB49C", pride:"#D4A15C", relief:"#8FBF9F",
+  longing:"#8A7A9E", confusion:"#9C9C9C", tension:"#B23A48", humor:"#F2994A",
+  curiosity:"#5AAAD9"
+};
+
+/* demo strata in hero, purely decorative */
+(function(){
+  const demo = document.getElementById('demoStrata');
+  const cols = Object.values(EMOTIONS);
+  let h = 0;
+  const bands = 9;
+  for(let i=0;i<bands;i++){
+    const bh = 100/bands;
+    const d = document.createElement('div');
+    d.style.top = h+'%'; d.style.height = bh+'%';
+    d.style.background = cols[(i*3)%cols.length];
+    d.style.opacity = 0.55;
+    demo.appendChild(d);
+    h += bh;
+  }
+})();
+
+/* ===================== FILE HANDLING ===================== */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const errorBox = document.getElementById('errorBox');
+
+dropzone.addEventListener('click', ()=> fileInput.click());
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function showError(msg){
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+
+async function handleFile(file){
+  errorBox.style.display = 'none';
+  try{
+    document.querySelector('.hero').style.display = 'none';
+    document.getElementById('processing').classList.add('active');
+    setDig('Reading the archive…', 5);
+
+    let rawTexts = []; // [{name, content}]
+    const lower = file.name.toLowerCase();
+
+    if(lower.endsWith('.zip')){
+      const zip = await JSZip.loadAsync(file);
+      const entries = Object.values(zip.files).filter(f=>{
+        if(f.dir) return false;
+        const n = f.name.toLowerCase();
+        return n.endsWith('.txt') || n.endsWith('.json') || n.endsWith('.html') || n.endsWith('.htm');
+      });
+      if(entries.length===0) throw new Error('No readable text, json, or html files found inside the zip.');
+      setDig('Pulling text out, skipping media…', 15);
+      for(const entry of entries){
+        // skip obviously huge non-chat json (sticker packs etc) over 15MB
+        const content = await entry.async('string');
+        rawTexts.push({name: entry.name, content});
+      }
+    } else {
+      const content = await file.text();
+      rawTexts.push({name: file.name, content});
+    }
+
+    setDig('Detecting the format…', 25);
+    let messages = [];
+    for(const rt of rawTexts){
+      messages = messages.concat(parseAny(rt.name, rt.content));
+    }
+    if(messages.length < 3) throw new Error("Couldn't find enough messages to work with. The export format may not be supported yet.");
+
+    // sort chronologically where we have timestamps
+    messages.sort((a,b)=>{
+      if(a.ts && b.ts) return a.ts - b.ts;
+      if(a.ts) return -1;
+      if(b.ts) return 1;
+      return 0;
+    });
+
+    setDig(`Found ${messages.length.toLocaleString()} messages. Splitting into chapters…`, 35);
+    const chapters = buildChapters(messages);
+
+    setDig('Two agents are reading now…', 45);
+    const analyzed = await analyzeChapters(chapters);
+
+    setDig('Digging up ideas…', 85);
+    const ideas = await extractIdeas(chapters);
+
+    setDig('Assembling the core sample…', 98);
+    renderResults(analyzed, ideas, messages);
+
+    document.getElementById('processing').classList.remove('active');
+    document.getElementById('results').classList.add('active');
+
+  }catch(err){
+    console.error(err);
+    document.getElementById('processing').classList.remove('active');
+    document.querySelector('.hero').style.display = 'block';
+    showError(err.message || 'Something went wrong reading that file.');
+  }
+}
+
+function setDig(text, pct){
+  document.getElementById('digLine').textContent = text;
+  document.getElementById('progressFill').style.width = pct+'%';
+}
+
+/* ===================== PARSERS ===================== */
+function parseAny(filename, content){
+  const lower = filename.toLowerCase();
+  try{
+    if(lower.endsWith('.json')){
+      const data = JSON.parse(fixMojibake(content));
+      return parseJSONGeneric(data);
+    }
+    if(lower.endsWith('.html') || lower.endsWith('.htm')){
+      return parseHTMLGeneric(content);
+    }
+    // .txt -> try WhatsApp first
+    const wa = parseWhatsApp(content);
+    if(wa.length > 3) return wa;
+    return parsePlainLines(content);
+  }catch(e){
+    // fallback: try plain line parse on raw content
+    try{ return parsePlainLines(content); }catch(e2){ return []; }
+  }
+}
+
+function fixMojibake(str){
+  try{
+    return decodeURIComponent(escape(str));
+  }catch(e){ return str; }
+}
+
+// WhatsApp: "[3/14/23, 9:15:32 PM] Name: text"  or  "3/14/23, 9:15 PM - Name: text"
+function parseWhatsApp(text){
+  const lines = text.split(/\r?\n/);
+  const out = [];
+  const re1 = /^\[?(\d{1,2}\/\d{1,2}\/\d{2,4}),?\s(\d{1,2}:\d{2}(?::\d{2})?\s?[APap]?[Mm]?)\]?\s?[-–]?\s?([^:]+):\s(.*)$/;
+  let current = null;
+  for(const line of lines){
+    const m = line.match(re1);
+    if(m){
+      if(current) out.push(current);
+      const [, date, time, sender, msg] = m;
+      const ts = tryParseDate(date+' '+time);
+      current = {sender: sender.trim(), ts, text: msg.trim()};
+    } else if(current){
+      current.text += ' ' + line.trim();
+    }
+  }
+  if(current) out.push(current);
+  return out.filter(m=> m.text && !/<Media omitted>|image omitted|video omitted/i.test(m.text));
+}
+
+function tryParseDate(str){
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Generic recursive scanner for Instagram / TikTok / Snapchat style JSON exports
+function parseJSONGeneric(data){
+  // Instagram shape: { participants:[...], messages:[{sender_name, timestamp_ms, content}] }
+  if(data && Array.isArray(data.messages) && data.messages.length && (data.messages[0].sender_name || data.messages[0].timestamp_ms)){
+    return data.messages
+      .filter(m=>m.content)
+      .map(m=>({sender: m.sender_name||'Unknown', ts: m.timestamp_ms ? new Date(m.timestamp_ms) : null, text: fixMojibake(String(m.content))}));
+  }
+  // otherwise, recursively find arrays of message-like objects
+  const found = [];
+  const senderKeys = /^(from|sender|author|name|user|username)$/i;
+  const textKeys = /^(text|content|message|body|msg)$/i;
+  const timeKeys = /^(time|date|timestamp|created|createdat|createtime)$/i;
+
+  function walk(node){
+    if(Array.isArray(node)){
+      if(node.length && typeof node[0] === 'object' && node[0] !== null){
+        const keys = Object.keys(node[0]);
+        const hasText = keys.some(k=>textKeys.test(k));
+        if(hasText){
+          for(const item of node){
+            if(typeof item !== 'object' || item===null) continue;
+            let sender='Unknown', text=null, ts=null;
+            for(const k of Object.keys(item)){
+              if(senderKeys.test(k) && typeof item[k]==='string') sender = item[k];
+              if(textKeys.test(k) && typeof item[k]==='string') text = item[k];
+              if(timeKeys.test(k)) ts = tryParseDate(String(item[k])) || (typeof item[k]==='number' ? new Date(item[k]) : null);
+            }
+            if(text) found.push({sender, ts, text});
+          }
+          return;
+        }
+      }
+      node.forEach(walk);
+    } else if(node && typeof node === 'object'){
+      Object.values(node).forEach(walk);
+    }
+  }
+  walk(data);
+  return found;
+}
+
+function parseHTMLGeneric(html){
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const text = div.textContent || '';
+  return parsePlainLines(text);
+}
+
+function parsePlainLines(text){
+  return text.split(/\r?\n/)
+    .map(l=>l.trim())
+    .filter(l=>l.length>2)
+    .map(l=>({sender:'Unknown', ts:null, text:l}));
+}
+
+/* ===================== CHAPTER BUILDING ===================== */
+function buildChapters(messages){
+  const withDates = messages.filter(m=>m.ts);
+  let groups = [];
+  if(withDates.length > messages.length * 0.5){
+    // group by month
+    const byMonth = {};
+    for(const m of messages){
+      const key = m.ts ? `${m.ts.getFullYear()}-${String(m.ts.getMonth()+1).padStart(2,'0')}` : 'undated';
+      (byMonth[key] ||= []).push(m);
+    }
+    const keys = Object.keys(byMonth).sort();
+    if(keys.length <= 14){
+      groups = keys.map(k=>({key:k, msgs: byMonth[k]}));
+    } else {
+      groups = chunkEqual(messages, 10);
+    }
+  } else {
+    groups = chunkEqual(messages, 8);
+  }
+  return groups.map((g,i)=>{
+    const msgs = g.msgs;
+    const first = msgs.find(m=>m.ts);
+    const last = [...msgs].reverse().find(m=>m.ts);
+    const sample = msgs.map(m=>`${m.sender}: ${m.text}`).join('\n').slice(0, 6000);
+    return {
+      index: i,
+      dateStart: first ? first.ts : null,
+      dateEnd: last ? last.ts : null,
+      count: msgs.length,
+      sample
+    };
+  });
+}
+
+function chunkEqual(arr, n){
+  const size = Math.ceil(arr.length/n);
+  const out = [];
+  for(let i=0;i<arr.length;i+=size){
+    out.push({key:`chunk-${i}`, msgs: arr.slice(i, i+size)});
+  }
+  return out;
+}
+
+function fmtDate(d){
+  if(!d) return '';
+  return d.toLocaleDateString(undefined, {month:'short', year:'numeric'});
+}
+
+/* ===================== CLAUDE AGENTS ===================== */
+async function callClaude(system, userText){
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      system,
+      messages: [{role:"user", content: userText}]
+    })
+  });
+  const data = await resp.json();
+  const textBlock = (data.content||[]).find(c=>c.type==='text');
+  return textBlock ? textBlock.text : '';
+}
+
+function safeJSON(str){
+  const cleaned = str.replace(/```json|```/g,'').trim();
+  try{ return JSON.parse(cleaned); }catch(e){
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if(match){ try{ return JSON.parse(match[0]); }catch(e2){} }
+    return null;
+  }
+}
+
+const EMOTION_AGENT_SYSTEM = `You are the Emotion Agent inside a personal archive tool. You read a slice of someone's chat history and identify the emotional terrain of that period.
+
+Choose only from this fixed emotion set: ${Object.keys(EMOTIONS).join(', ')}.
+
+Respond with ONLY valid JSON, no preamble, no markdown fences, in this exact shape:
+{
+  "title": "a short evocative chapter title, max 6 words, no 'Act' or numbering prefix",
+  "narrative": "2-4 sentences describing what was actually happening and how it felt emotionally, written with warmth and specificity, referring to real content when relevant, never generic",
+  "emotions": [{"name":"one of the fixed emotions","score":0.0-1.0}, ... 2 to 5 entries, sorted by score descending]
+}`;
+
+const IDEA_AGENT_SYSTEM = `You are the Idea Agent inside a personal archive tool. You read slices of someone's chat history and dig out anything that reads like an idea, a plan, a problem statement worth solving, or the seed of a business or project concept — even if it was mentioned casually or in passing.
+
+Respond with ONLY valid JSON, no preamble, no markdown fences, in this exact shape:
+{
+  "ideas": [
+    {"title":"short punchy title, max 8 words", "description":"1-2 sentences explaining the idea and why it's interesting, grounded in what was actually said", "category":"one of: Business Model, Problem Statement, Project Idea, Creative Concept"}
+  ]
+}
+If there is genuinely nothing idea-shaped in this text, return {"ideas": []}. Do not invent ideas that aren't there.`;
+
+async function analyzeChapters(chapters){
+  const results = [];
+  const total = chapters.length;
+  for(let i=0;i<total;i++){
+    const c = chapters[i];
+    setDig(`Emotion Agent reading chapter ${i+1} of ${total}…`, 45 + Math.round((i/total)*35));
+    let parsed = null;
+    try{
+      const userText = `Time period: ${fmtDate(c.dateStart)} – ${fmtDate(c.dateEnd)}\nMessage count: ${c.count}\n\nConversation excerpt:\n${c.sample || '(no readable text)'}`;
+      const raw = await callClaude(EMOTION_AGENT_SYSTEM, userText);
+      parsed = safeJSON(raw);
+    }catch(e){ console.error(e); }
+    if(!parsed){
+      parsed = {title:`Chapter ${i+1}`, narrative:"This period couldn't be analyzed in detail, but it's part of the timeline.", emotions:[{name:"curiosity", score:0.4}]};
+    }
+    results.push({...c, ...parsed});
+  }
+  return results;
+}
+
+async function extractIdeas(chapters){
+  const all = [];
+  const total = chapters.length;
+  for(let i=0;i<total;i++){
+    const c = chapters[i];
+    setDig(`Idea Agent scanning chapter ${i+1} of ${total}…`, 85 + Math.round((i/total)*12));
+    try{
+      const raw = await callClaude(IDEA_AGENT_SYSTEM, c.sample || '');
+      const parsed = safeJSON(raw);
+      if(parsed && Array.isArray(parsed.ideas)) all.push(...parsed.ideas);
+    }catch(e){ console.error(e); }
+  }
+  return all;
+}
+
+/* ===================== RENDER ===================== */
+function renderResults(chapters, ideas, allMessages){
+  const withDates = chapters.filter(c=>c.dateStart);
+  const range = withDates.length
+    ? `${fmtDate(withDates[0].dateStart)} → ${fmtDate(withDates[withDates.length-1].dateEnd)}`
+    : 'undated archive';
+  document.getElementById('resultsMeta').textContent = `${allMessages.length.toLocaleString()} messages · ${chapters.length} chapters · ${range}`;
+
+  // core strip
+  const strip = document.getElementById('coreStrip');
+  strip.innerHTML = '';
+  chapters.forEach((c, i)=>{
+    const top = c.emotions && c.emotions[0] ? c.emotions[0].name : 'curiosity';
+    const div = document.createElement('div');
+    div.className = 'stratum';
+    div.style.height = (100/chapters.length) + '%';
+    div.style.background = EMOTIONS[top] || '#666';
+    div.title = `${c.title} — ${top}`;
+    div.addEventListener('click', ()=>{
+      const target = document.getElementById('chapter-'+i);
+      target.scrollIntoView({behavior:'smooth', block:'center'});
+      target.classList.add('flash');
+      setTimeout(()=>target.classList.remove('flash'), 900);
+    });
+    strip.appendChild(div);
+  });
+
+  // chapters
+  const chaptersEl = document.getElementById('chaptersEl');
+  chaptersEl.innerHTML = '';
+  const acts = ['Act I','Act II','Act III','Act IV','Act V','Act VI','Act VII','Act VIII','Act IX','Act X','Act XI','Act XII','Act XIII','Act XIV'];
+  chapters.forEach((c,i)=>{
+    const el = document.createElement('div');
+    el.className = 'chapter';
+    el.id = 'chapter-'+i;
+    const rangeStr = c.dateStart ? `${fmtDate(c.dateStart)} — ${fmtDate(c.dateEnd)} · ${c.count} messages` : `${c.count} messages`;
+    const tags = (c.emotions||[]).map(e=>`
+      <span class="etag"><span class="dot" style="background:${EMOTIONS[e.name]||'#888'}"></span>${e.name} · ${Math.round(e.score*100)}%</span>
+    `).join('');
+    el.innerHTML = `
+      <div class="chapter-eyebrow">${acts[i] || 'Chapter '+(i+1)}</div>
+      <h3>${escapeHTML(c.title)}</h3>
+      <div class="range">${rangeStr}</div>
+      <div class="narrative">${escapeHTML(c.narrative)}</div>
+      <div class="emotion-tags">${tags}</div>
+    `;
+    chaptersEl.appendChild(el);
+  });
+
+  // ideas
+  const grid = document.getElementById('ideasGrid');
+  grid.innerHTML = '';
+  if(!ideas.length){
+    grid.innerHTML = '<div class="no-ideas">No stray ideas surfaced in this one — sometimes a conversation is just a conversation.</div>';
+  } else {
+    ideas.forEach(idea=>{
+      const el = document.createElement('div');
+      el.className = 'idea-card';
+      el.innerHTML = `
+        <div class="idea-cat">${escapeHTML(idea.category||'Idea')}</div>
+        <h4>${escapeHTML(idea.title||'Untitled idea')}</h4>
+        <p>${escapeHTML(idea.description||'')}</p>
+      `;
+      grid.appendChild(el);
+    });
+  }
+}
+
+function escapeHTML(str){
+  const d = document.createElement('div');
+  d.textContent = str==null ? '' : String(str);
+  return d.innerHTML;
+}
+
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  location.reload();
+});
+</script>
+</body>
+</html>
